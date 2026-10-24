@@ -48,12 +48,7 @@ import {
   type NewSessionTarget,
   type ProjectChoice,
 } from "@/lib/new-session-context";
-import {
-  clearLastOpen,
-  getLastOpenSession,
-  setLastOpenSession,
-  workspaceKeyOf,
-} from "@/lib/workspace-memory";
+import { workspaceKeyOf } from "@/lib/workspace-memory";
 import {
   getDefaultRightPanelWidth,
   getRightPanelMaxWidth,
@@ -645,30 +640,11 @@ export function AppShell() {
   }, [initialNavigation]);
   // Suppresses sessionKey bump in handleCwdChange during the initial URL restore
   const suppressCwdBumpRef = useRef(false);
-  // Set when the session the URL linked to is gone: the project the sidebar
-  // adopts next keeps a fresh composer instead of restoring its last session.
-  const skipWorkspaceRestoreRef = useRef(false);
-  // Guards the async workspace restore so a slow response from an earlier
-  // switch cannot resurrect a session into a project the user already left.
-  const workspaceRestoreTokenRef = useRef(0);
-
-  const invalidateWorkspaceRestore = useCallback(() => {
-    workspaceRestoreTokenRef.current += 1;
-  }, []);
-
-  // Persist every active-session transition, including new and forked sessions
-  // that bypass the sidebar selection handler. Transient sessions do not yet
-  // carry projectKey, so use the active project identity until hydration.
-  // The workspace memory is shared by every tab; the tab memory keeps this
-  // tab's own session so a reload does not follow another tab's last pick.
-  // New session is a selection too: remember the composer cwd so reload stays
-  // on that UI instead of resurrecting the previous chat.
+  // Remember only this tab's selection for reload. Project switches and fresh
+  // tabs never restore a conversation from shared localStorage.
+  // New session is a selection too: reload stays on the fresh composer.
   useEffect(() => {
     if (selectedSession) {
-      const projectKey = selectedSession.projectKey
-        ?? activeProjectKeyRef.current
-        ?? workspaceKeyOf(selectedSession);
-      setLastOpenSession(projectKey, selectedSession.id);
       setTabOpenSession(selectedSession.id);
       return;
     }
@@ -716,72 +692,15 @@ export function AppShell() {
     return () => controller.abort();
   }, [initialNavigation, router]);
 
-  // Restore the workspace's last open session after switching to it. Called
-  // from handleCwdChange once the outgoing context has been reset. The session
-  // is looked up against the live list so a deleted or drifted session falls
-  // back to the default welcome page instead of erroring.
-  const restoreWorkspaceContext = useCallback((projectKey: string, cwd: string) => {
-    const token = ++workspaceRestoreTokenRef.current;
-    const lastOpenSessionId = getLastOpenSession(projectKey);
-    if (!lastOpenSessionId) return;
-    const adopt = (d: { sessions: SessionInfo[] } | null) => {
-      if (token !== workspaceRestoreTokenRef.current) return; // stale switch
-      const s = d?.sessions.find((x) => x.id === lastOpenSessionId);
-      if (!s) {
-        // The list loaded but the remembered session is gone — forget it.
-        // When the list itself failed (d === null) keep the memory so a
-        // later switch retries the restore.
-        if (d) clearLastOpen(projectKey);
-        return;
-      }
-      if (workspaceKeyOf(s) !== projectKey) {
-        // Defensive: the remembered session drifted out of this workspace.
-        clearLastOpen(projectKey);
-        return;
-      }
-      // Keep the temporary composer's draft in its cwd, even when the
-      // remembered session belongs to another worktree of this project.
-      const activeDraftKey = activeNewSessionDraftKeyRef.current;
-      if (activeDraftKey) {
-        rekeyDraft(activeDraftKey, parkedNewSessionDraftKey(cwd));
-      }
-      activeNewSessionDraftKeyRef.current = null;
-      // Selecting the session must remount the chat with the session
-      // present: useAgentSession loads content in a mount-only effect, so
-      // the null-session welcome mount from the switch would never load
-      // the restored session's messages.
-      setSelectedSession(s);
-      setSessionKey((k) => k + 1);
-      if (new URLSearchParams(window.location.search).get("session") !== s.id) {
-        router.replace(`?session=${encodeURIComponent(s.id)}`, { scroll: false });
-      }
-    };
-    // Fast path: the sidebar already delivered the catalogue — restore
-    // without waiting on a fresh /api/sessions round trip.
-    if (sessionCatalog.length > 0) {
-      adopt({ sessions: sessionCatalog });
-      return;
-    }
-    void fetch("/api/sessions")
-      .then((r) => (r.ok ? (r.json() as Promise<{ sessions: SessionInfo[] }>) : null))
-      .then(adopt)
-      .catch(() => {
-        // Network hiccup: keep the remembered session for a later retry.
-      });
-  }, [router, sessionCatalog]);
-
   const handleCwdChange = useCallback((
     cwd: string | null,
     projectRoot?: string | null,
     projectKey?: string | null,
   ) => {
-    invalidateWorkspaceRestore();
     const currentFreshCwd = newSessionCwd ?? activeCwd;
     setActiveCwd(cwd);
     // Skip if cwd is null (initial mount).
     if (!cwd) return;
-    const skipWorkspaceRestore = skipWorkspaceRestoreRef.current;
-    skipWorkspaceRestoreRef.current = false;
     const newProject = projectKey ?? projectRoot ?? cwd;
     const currentProject = activeProjectKeyRef.current
       ?? (selectedSession ? workspaceKeyOf(selectedSession) : null);
@@ -835,16 +754,12 @@ export function AppShell() {
       // Keep #281's project isolation, but park each workspace's file tabs
       // instead of discarding them so they return when the user switches back.
       changeFileWorkspace(currentProject, newProject);
-      // Restore the workspace we switched to: its last open session, or keep
-      // the default welcome page when none is remembered.
-      if (!skipWorkspaceRestore) restoreWorkspaceContext(newProject, cwd);
     }
     router.replace(typeof window !== "undefined" ? window.location.pathname : "/", { scroll: false });
-  }, [activeCwd, changeFileWorkspace, invalidateWorkspaceRestore, newSessionCwd, router, selectedSession, restoreWorkspaceContext]);
+  }, [activeCwd, changeFileWorkspace, newSessionCwd, router, selectedSession]);
 
   const handleSelectSession = useCallback((session: SessionInfo, isRestore = false, entryId?: string, blockIndex?: number, options?: SelectSessionOptions) => {
     setSearchTarget(entryId ? { sessionId: session.id, entryId, blockIndex } : null);
-    invalidateWorkspaceRestore();
     const activeDraftKey = activeNewSessionDraftKeyRef.current;
     const activeDraftCwd = newSessionCwd ?? (selectedSession === null ? activeCwd : null);
     if (activeDraftKey && activeDraftCwd) {
@@ -896,10 +811,9 @@ export function AppShell() {
     if (!isRestore || new URLSearchParams(window.location.search).get("session") !== session.id) {
       router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
     }
-  }, [activeCwd, changeFileWorkspace, invalidateWorkspaceRestore, router, isMobile, newSessionCwd, selectedSession]);
+  }, [activeCwd, changeFileWorkspace, router, isMobile, newSessionCwd, selectedSession]);
 
   const handleNewSession = useCallback((sessionId: string, cwd: string, projectKey?: string | null, options?: NewSessionOptions) => {
-    invalidateWorkspaceRestore();
     const draftKey = `new:${sessionId}:${cwd}`;
     // Leaving a fresh composer for another cwd parks its draft there, as a
     // workspace switch does; New in the same cwd still starts empty. The bar
@@ -950,7 +864,7 @@ export function AppShell() {
         chatInputRef.current?.focus();
       });
     }
-  }, [activeCwd, changeFileWorkspace, invalidateWorkspaceRestore, isMobile, newSessionCwd, router, selectedSession]);
+  }, [activeCwd, changeFileWorkspace, isMobile, newSessionCwd, router, selectedSession]);
 
   // Global keyboard shortcuts (handles Esc, Ctrl+Alt+N etc.)
   useGlobalKeyboardShortcuts({
@@ -981,13 +895,12 @@ export function AppShell() {
   const handleSessionCreated = useCallback((session: SessionInfo, sourceDraftKey: string) => {
     setRefreshKey((k) => k + 1);
     if (activeNewSessionDraftKeyRef.current !== sourceDraftKey) return;
-    invalidateWorkspaceRestore();
     activeNewSessionDraftKeyRef.current = null;
     setNewSessionCwd(null);
     setSelectedSession(session);
     hydrateSelectedSession(session.id);
     router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
-  }, [invalidateWorkspaceRestore, router, hydrateSelectedSession]);
+  }, [router, hydrateSelectedSession]);
 
   const deliverSessionNotification = useCallback(({
     targetSession,
@@ -1116,7 +1029,6 @@ export function AppShell() {
   }, []);
 
   const handleSessionForked = useCallback((newSessionId: string) => {
-    invalidateWorkspaceRestore();
     activeNewSessionDraftKeyRef.current = null;
     setRefreshKey((k) => k + 1);
     setSessionKey((k) => k + 1);
@@ -1128,7 +1040,7 @@ export function AppShell() {
     }));
     hydrateSelectedSession(newSessionId);
     router.replace(`?session=${encodeURIComponent(newSessionId)}`, { scroll: false });
-  }, [invalidateWorkspaceRestore, router, hydrateSelectedSession]);
+  }, [router, hydrateSelectedSession]);
 
   const handleAskInNewChat = useCallback(async (
     prompt: string,
@@ -1147,11 +1059,9 @@ export function AppShell() {
   // The sidebar calls this when the initial session is not in its list.
   const handleInitialRestoreDone = useCallback(() => {
     setInitialSessionRestored(true);
-    if (initialLinkedSessionId) skipWorkspaceRestoreRef.current = true;
-  }, [initialLinkedSessionId]);
+  }, []);
 
   const handleSessionDeleted = useCallback((sessionId: string) => {
-    invalidateWorkspaceRestore();
     setRefreshKey((k) => k + 1);
     // The DELETE can outlive a session switch: this callback's captured
     // selectedSession is from the delete click. Read the latest selection
@@ -1178,7 +1088,7 @@ export function AppShell() {
       setActiveTopPanel(null);
       router.replace(cwd ? `?cwd=${encodeURIComponent(cwd)}` : (typeof window !== "undefined" ? window.location.pathname : "/"), { scroll: false });
     }
-  }, [invalidateWorkspaceRestore, router]);
+  }, [router]);
 
   const handleOpenFile = useCallback((
     filePath: string,

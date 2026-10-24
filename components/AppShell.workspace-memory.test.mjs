@@ -17,9 +17,14 @@ function callbackBody(name, nextName) {
   return source.slice(start, end);
 }
 
-test("a linked session that is gone gets no other session in its place (#1168)", async (t) => {
+test("AppShell does not read or persist shared last-open conversation memory", () => {
+  assert.doesNotMatch(source, /\b(?:getLastOpenSession|setLastOpenSession|restoreWorkspaceContext)\b/);
+  assert.match(source, /setTabOpenSession\(selectedSession\.id\)/);
+  assert.match(source, /withTabOpen\(initialNavigation, getTabOpen\(\)\)/);
+});
+
+test("fresh tabs and missing session links never restore a project's last conversation", async (t) => {
   const callbacks = [
-    callbackBody("restoreWorkspaceContext", "handleCwdChange"),
     callbackBody("handleCwdChange", "handleSelectSession"),
     callbackBody("handleInitialRestoreDone", "handleSessionDeleted"),
   ].join("\n");
@@ -71,26 +76,22 @@ test("a linked session that is gone gets no other session in its place (#1168)",
       context.navigate.handleInitialRestoreDone();
       context.navigate.handleCwdChange("/p1", "/p1", "/p1");
       context.navigate.handleCwdChange("/p1", "/p1", "/p1-key");
-      if (linkedId) {
-        assert.equal(context.selectedSession, null, "a fresh composer, not the project's last session");
-        assert.equal(context.activeCwd, "/p1");
-        assert.ok(!urls.some((url) => url.includes("session=")), `no other session's URL: ${urls.join(", ")}`);
-      } else {
-        assert.equal(context.selectedSession?.id, lastOpen.id, "a fresh tab's fallback");
-        assert.ok(urls.includes(`?session=${lastOpen.id}`));
-      }
+      assert.equal(context.selectedSession, null, "a fresh composer, not the project's last session");
+      assert.equal(context.activeCwd, "/p1");
+      assert.ok(!urls.some((url) => url.includes("session=")), `no other session's URL: ${urls.join(", ")}`);
 
-      // Ordinary project switches keep their restore.
+      // A project switch also leaves the fresh composer, even with remembered IDs.
+      context.selectedSession = lastOpen;
       context.navigate.handleCwdChange("/p2", "/p2", "/p2");
-      assert.equal(context.selectedSession?.id, otherLastOpen.id);
-      assert.equal(context.skipWorkspaceRestoreRef.current, false);
+      assert.equal(context.selectedSession, null);
+      assert.equal(context.activeCwd, "/p2");
+      assert.ok(!urls.some((url) => url.includes("session=")));
     });
   }
 });
 
-test("New restores the draft after session navigation and workspace auto-restore", async (t) => {
+test("New restores the draft after session navigation and project switches without auto-opening a conversation", async (t) => {
   const callbacks = [
-    callbackBody("restoreWorkspaceContext", "handleCwdChange"),
     callbackBody("handleCwdChange", "handleSelectSession"),
     callbackBody("handleSelectSession", "handleNewSession"),
     callbackBody("handleNewSession", "hydrateSelectedSession"),
@@ -198,9 +199,7 @@ test("New restores the draft after session navigation and workspace auto-restore
       response.resolve({ ok: true, json: async () => ({ sessions: [session] }) });
       await new Promise((resolve) => setImmediate(resolve));
       await commit();
-      assert.equal(context.selectedSession.id, session.id);
-      context.navigate.handleNewSession("after-auto-restore", cwd);
-      await commit();
+      assert.equal(context.selectedSession, null);
       assert.deepEqual(draftStore.getDraft(context.activeNewSessionDraftKeyRef.current), draft);
       draftStore.clearDraft(context.activeNewSessionDraftKeyRef.current);
     });
@@ -209,7 +208,6 @@ test("New restores the draft after session navigation and workspace auto-restore
 
 test("New in another project adopts it up front and parks the composer's draft", () => {
   const callbacks = [
-    callbackBody("restoreWorkspaceContext", "handleCwdChange"),
     callbackBody("handleCwdChange", "handleSelectSession"),
     callbackBody("handleSelectSession", "handleNewSession"),
     callbackBody("handleNewSession", "hydrateSelectedSession"),
@@ -295,7 +293,6 @@ test("New in another project adopts it up front and parks the composer's draft",
 
 test("the composer's bar moves the fresh composer's draft and model picks instead of parking them", () => {
   const callbacks = [
-    callbackBody("restoreWorkspaceContext", "handleCwdChange"),
     callbackBody("handleCwdChange", "handleSelectSession"),
     callbackBody("handleSelectSession", "handleNewSession"),
     callbackBody("handleNewSession", "hydrateSelectedSession"),
@@ -468,7 +465,6 @@ test("the bar of the new composer shows the bar's own move until the sidebar rep
 
 test("a new session puts the caret in the fresh composer on desktop only (#1313)", () => {
   const callbacks = [
-    callbackBody("restoreWorkspaceContext", "handleCwdChange"),
     callbackBody("handleCwdChange", "handleSelectSession"),
     callbackBody("handleSelectSession", "handleNewSession"),
     callbackBody("handleNewSession", "hydrateSelectedSession"),
