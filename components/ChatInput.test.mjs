@@ -19,6 +19,24 @@ const { ModelSelector } = await jiti.import("./ModelSelector.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("@/lib/draft-store");
 const { I18nProvider } = await jiti.import("@/hooks/useI18n");
 
+test("Attach Files shows a decorative upload icon and keeps the multi-file picker", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(I18nProvider, null, React.createElement(ChatInput, {
+      onSend() {}, onAbort() {}, onAttachFiles() {}, isStreaming: false,
+    })),
+  );
+  const button = html.match(/<button[^>]*title="Attach files"[^>]*>[\s\S]*?<\/button>/i)?.[0];
+  assert.ok(button, "Attach Files button is present");
+  assert.match(button, /aria-label="Attach files"/i);
+  assert.match(button, /<svg aria-hidden="true"/);
+  assert.match(button, /d="M12 3v12m5-7l-5-5l-5 5m14 7v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/);
+  assert.doesNotMatch(button, /<circle|<polyline/);
+  const input = html.match(/<input[^>]*type="file"[^>]*>/)?.[0];
+  assert.ok(input);
+  assert.match(input, /multiple/);
+  assert.doesNotMatch(input, /accept=|capture=/);
+});
+
 test("preserves pasted HTML links as Markdown without changing plain text layout", () => {
   const link = (label, href, occurrence = 0) => ({ label, href, occurrence });
 

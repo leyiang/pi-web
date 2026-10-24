@@ -2434,6 +2434,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             <button
               onClick={() => fileInputRef.current?.click()}
              title={t("chat.attachFiles")}
+              aria-label={t("chat.attachFiles")}
               style={{
                 flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
                 width: 32, height: 32, padding: 0,
@@ -2453,10 +2454,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 e.currentTarget.style.color = attachedImages.length ? "var(--accent)" : "var(--text-muted)";
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
+              {/* Iconify lucide:upload; see docs/licenses/lucide.txt. */}
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12m5-7l-5-5l-5 5m14 7v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               </svg>
             </button>
             {/* Model selector - visible always, disabled while the session or switch is busy */}
