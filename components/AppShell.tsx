@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { SessionSidebar, type SelectSessionOptions, type SessionSidebarControl } from "./SessionSidebar";
 import { ChatWindow } from "./ChatWindow";
+import { SessionRouter, type RoutedTask } from "./SessionRouter";
+import { startsOnSessionRouter } from "@/lib/session-routing";
+import { getLastChat, rememberLastChat, forgetLastChat, LAST_CHAT_STORAGE_KEY } from "@/lib/last-chat";
 import { NewSessionContextBar, type NewSessionContextControl } from "./NewSessionContextBar";
 import type { ChatScrollPosition } from "@/lib/chat-scroll-position";
 import { FileViewer } from "./FileViewer";
@@ -98,6 +101,9 @@ export function AppShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [initialNavigation, setInitialNavigation] = useState(() => getInitialNavigation(searchParams));
+  const [startsInRouter] = useState(() => startsOnSessionRouter(searchParams));
+  const [sessionRouterOpen, setSessionRouterOpen] = useState(startsInRouter);
+  const [lastChatId, setLastChatId] = useState<string | null>(null);
   // Keep the system-theme subscription mounted for the lifetime of the app.
   useTheme();
   // Restore fonts even when Settings and the chat composer have not been opened.
@@ -304,6 +310,8 @@ export function AppShell() {
   }, [reclampRightPanelWidth, reclampSidebarWidth, rightPanelOpen]);
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const [pendingQuotePrompt, setPendingQuotePrompt] = useState<{ sessionId: string; text: string } | null>(null);
+  const [pendingRoutedPrompt, setPendingRoutedPrompt] = useState<{ sessionId: string; text: string } | null>(null);
+  const routedRequestIdsRef = useRef(new Set<string>());
   const topBarRef = useRef<HTMLDivElement>(null);
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
   // Branch navigator state — populated by ChatWindow via onBranchDataChange
@@ -633,15 +641,16 @@ export function AppShell() {
   // in the useState initializer made the first client tree differ from the
   // server HTML (sidebar "select project" vs ""). Restore after mount instead.
   useLayoutEffect(() => {
+    if (startsInRouter) return;
     const next = withTabOpen(initialNavigation, getTabOpen());
     if (next === initialNavigation) return;
     setInitialNavigation(next);
     if (next.sessionId) setInitialSessionRestored(false);
-  }, [initialNavigation]);
+  }, [initialNavigation, startsInRouter]);
   // Suppresses sessionKey bump in handleCwdChange during the initial URL restore
   const suppressCwdBumpRef = useRef(false);
-  // Remember only this tab's selection for reload. Project switches and fresh
-  // tabs never restore a conversation from shared localStorage.
+  // Keep this tab's reload selection; the router's shared last-chat memory is
+  // only a manual return destination, never an automatic navigation source.
   // New session is a selection too: reload stays on the fresh composer.
   useEffect(() => {
     if (selectedSession) {
@@ -650,6 +659,22 @@ export function AppShell() {
     }
     if (newSessionCwd) setTabOpenNewSession(newSessionCwd);
   }, [newSessionCwd, selectedSession]);
+
+  useEffect(() => {
+    if (!selectedSession?.id) return;
+    rememberLastChat(selectedSession.id);
+    setLastChatId(selectedSession.id);
+  }, [selectedSession?.id]);
+
+  useEffect(() => {
+    const tab = getTabOpen();
+    setLastChatId(getLastChat() ?? (tab?.kind === "session" ? tab.sessionId : null));
+    const sync = (event: StorageEvent) => {
+      if (event.key === LAST_CHAT_STORAGE_KEY || event.key === null) setLastChatId(getLastChat());
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
 
   useEffect(() => {
     const requestedCwd = initialNavigation.requestedCwd;
@@ -759,6 +784,8 @@ export function AppShell() {
   }, [activeCwd, changeFileWorkspace, newSessionCwd, router, selectedSession]);
 
   const handleSelectSession = useCallback((session: SessionInfo, isRestore = false, entryId?: string, blockIndex?: number, options?: SelectSessionOptions) => {
+    if (!isRestore) setSessionRouterOpen(false);
+    setPendingRoutedPrompt(null);
     setSearchTarget(entryId ? { sessionId: session.id, entryId, blockIndex } : null);
     const activeDraftKey = activeNewSessionDraftKeyRef.current;
     const activeDraftCwd = newSessionCwd ?? (selectedSession === null ? activeCwd : null);
@@ -814,6 +841,8 @@ export function AppShell() {
   }, [activeCwd, changeFileWorkspace, router, isMobile, newSessionCwd, selectedSession]);
 
   const handleNewSession = useCallback((sessionId: string, cwd: string, projectKey?: string | null, options?: NewSessionOptions) => {
+    setSessionRouterOpen(false);
+    setPendingRoutedPrompt(null);
     const draftKey = `new:${sessionId}:${cwd}`;
     // Leaving a fresh composer for another cwd parks its draft there, as a
     // workspace switch does; New in the same cwd still starts empty. The bar
@@ -1055,6 +1084,46 @@ export function AppShell() {
     setPendingQuotePrompt({ sessionId: result.newSessionId, text: prompt });
     handleSessionForked(result.newSessionId);
   }, [handleSessionForked, translate]);
+
+  const handleReturnLastChat = useCallback(async () => {
+    const id = lastChatId ?? getLastChat();
+    if (!id) throw new Error(translate("router.noLastChat"));
+    const response = await fetch(`/api/sessions/${encodeURIComponent(id)}?tail=1&tree=summary&deferThinking=1&deferMedia=1`);
+    if (response.status === 404) {
+      forgetLastChat(id);
+      clearTabOpenSession(id);
+      setLastChatId(null);
+      throw new Error(translate("router.targetGone"));
+    }
+    if (!response.ok) throw new Error(translate("router.failed"));
+    let target = sessionCatalog.find(session => session.id === id);
+    if (!target) {
+      const catalogResponse = await fetch("/api/sessions", { cache: "no-store" });
+      if (!catalogResponse.ok) throw new Error(translate("router.failed"));
+      const catalog = await catalogResponse.json() as { sessions: SessionInfo[] };
+      target = catalog.sessions.find(session => session.id === id);
+    }
+    if (!target) throw new Error(translate("router.targetGone"));
+    // Explicit navigation only: never populate initialPrompt or call a prompt endpoint.
+    handleSelectSession(target);
+    // An earlier navigation back to the router may still be pending. This
+    // explicit click must supersede it even if the current URL still names id.
+    router.replace(`?session=${encodeURIComponent(id)}`, { scroll: false });
+  }, [lastChatId, sessionCatalog, handleSelectSession, router, translate]);
+
+  const handleRoutedTask = useCallback((task: RoutedTask) => {
+    if (routedRequestIdsRef.current.has(task.requestId)) return;
+    routedRequestIdsRef.current.add(task.requestId);
+    if (routedRequestIdsRef.current.size > 100) {
+      routedRequestIdsRef.current.delete(routedRequestIdsRef.current.values().next().value!);
+    }
+    handleSelectSession(task.target);
+    setPendingRoutedPrompt({ sessionId: task.target.id, text: task.message });
+    // Selecting the already-open target normally skips remounting. Routing must
+    // mount its delivery once even when it returns to that same conversation.
+    setSessionKey(key => key + 1);
+    setSessionRouterOpen(false);
+  }, [handleSelectSession]);
 
   // The sidebar calls this when the initial session is not in its list.
   const handleInitialRestoreDone = useCallback(() => {
@@ -2473,9 +2542,16 @@ export function AppShell() {
         {isMobile && renderProjectTrustWarning(true)}
         </div>
 
+        {!sessionRouterOpen && <div style={{ display: "flex", justifyContent: "flex-end", padding: "3px 12px", borderBottom: "1px solid var(--border)" }}>
+          <button type="button" onClick={() => { setSessionRouterOpen(true); router.replace(window.location.pathname, { scroll: false }); }}
+            style={{ border: "none", background: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 12, padding: "5px 8px" }}>
+            {translate("router.title")}
+          </button>
+        </div>}
         {/* Chat content */}
         <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
-          {showChat ? (
+          {sessionRouterOpen ? <SessionRouter onRoute={handleRoutedTask} onExit={() => setSessionRouterOpen(false)}
+            canReturn={Boolean(lastChatId)} onReturn={handleReturnLastChat} /> : showChat ? (
             <ChatWindow
               key={sessionKey}
               session={selectedSession}
@@ -2509,8 +2585,10 @@ export function AppShell() {
               onOpenSubagent={handleOpenSubagentTab}
               onAskInNewChat={handleAskInNewChat}
               quoteSelectionEnabled={quoteSelectionEnabled}
-              initialPrompt={pendingQuotePrompt?.sessionId === selectedSession?.id ? pendingQuotePrompt?.text : undefined}
-              onInitialPromptConsumed={() => setPendingQuotePrompt(null)}
+              initialPrompt={pendingRoutedPrompt?.sessionId === selectedSession?.id ? pendingRoutedPrompt?.text
+                : pendingQuotePrompt?.sessionId === selectedSession?.id ? pendingQuotePrompt?.text : undefined}
+              initialPromptFollowUp={Boolean(pendingRoutedPrompt && pendingRoutedPrompt.sessionId === selectedSession?.id)}
+              onInitialPromptConsumed={() => { setPendingQuotePrompt(null); setPendingRoutedPrompt(null); }}
               soundEnabled={soundEnabled}
               onSoundToggle={onSoundToggle}
               playDoneSound={playDoneSound}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "会话路由"
+  short_description: "只读浏览历史对话上下文，为用户的新任务选择合适的已有会话目标"
+  default_prompt: "使用 $route-session 为我的新任务找到合适的已有会话，不执行任务。"
