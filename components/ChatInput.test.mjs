@@ -19,6 +19,55 @@ const { ModelSelector } = await jiti.import("./ModelSelector.tsx");
 const { clearDraft, getDraft, mergeRestoredSubmissionDraft, mergeRestoredSubmissionText, rekeyDraft, setDraft } = await jiti.import("@/lib/draft-store");
 const { I18nProvider } = await jiti.import("@/hooks/useI18n");
 
+test("mobile More controls is icon-only and Stop is outside the collapsible menu", () => {
+  const text = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  const source = ts.createSourceFile("ChatInput.tsx", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let more;
+  let stop;
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === "button") {
+      const attributes = node.openingElement.attributes.getText(source);
+      if (attributes.includes('aria-label={t("chat.moreControls")}')) more = node;
+      if (attributes.includes('className="chat-stop-button"')) stop = node;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(more);
+  assert.ok(stop);
+  assert.match(more.getText(source), /M4 5h16M4 12h16M4 19h16/);
+  assert.match(more.getText(source), /width: 32,/);
+  assert.doesNotMatch(more.getText(source), /\{t\("chat.moreControls"\)\}\s*<\/button>/);
+  assert.match(stop.getText(source), /onClick=\{onAbort\}/);
+  for (let node = stop.parent; node; node = node.parent) {
+    if (ts.isJsxElement(node)) {
+      assert.doesNotMatch(node.openingElement.attributes.getText(source), /controlsMenuOpen/,
+        "Stop must not live inside the mobile menu's hidden container");
+    }
+  }
+  assert.match(text, /right: isStreaming \? "calc\(100% - 32px\)" : 0/);
+});
+
+test("an empty placeholder never scrolls while real input keeps normal overflow", () => {
+  const draftKey = "placeholder-overflow-test";
+  try {
+    for (const value of ["", " ", "Actual input\n".repeat(40)]) {
+      setDraft(draftKey, { value, images: [] });
+      const html = renderToStaticMarkup(
+        React.createElement(I18nProvider, null, React.createElement(ChatInput, {
+          onSend() {}, onAbort() {}, isStreaming: false, draftKey,
+        })),
+      );
+      const textarea = html.match(/<textarea[^>]*class="chat-input-textarea"[^>]*>/)?.[0];
+      assert.ok(textarea);
+      assert.match(textarea, value ? /overflow:auto/ : /overflow:hidden/);
+      assert.match(textarea, /max-height:200px/);
+    }
+  } finally {
+    clearDraft(draftKey);
+  }
+});
+
 test("Attach Files shows a decorative upload icon and keeps the multi-file picker", () => {
   const html = renderToStaticMarkup(
     React.createElement(I18nProvider, null, React.createElement(ChatInput, {

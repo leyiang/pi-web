@@ -154,8 +154,7 @@ export function ModelSelector({
         alignItems: "center",
         justifyContent: isMobile ? "flex-start" : undefined,
         gap: 6,
-        width: isMobile ? "100%" : undefined,
-        maxWidth: isMobile ? "100%" : 220,
+        maxWidth: 220,
         height: 32,
         padding: isMobile ? "8px 10px" : "8px 12px",
         overflow: "hidden",
@@ -187,7 +186,7 @@ export function ModelSelector({
     <div
       ref={rootRef}
       className={`model-selector is-${variant}${locked ? " is-disabled" : ""}`}
-      style={{ position: "relative", width: variant === "field" || isMobile ? "100%" : undefined, minWidth: 0, flex: variant === "toolbar" && isMobile ? "1 1 auto" : undefined }}
+      style={{ position: "relative", width: variant === "field" ? "100%" : undefined, minWidth: 0, flex: variant === "toolbar" && isMobile ? "0 1 auto" : undefined }}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || !open) return;
         event.preventDefault();

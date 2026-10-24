@@ -1,5 +1,13 @@
 # Pi Web - Development Notes
 
+## 开发修改后的必做验收（Downstream）
+
+- 每次修改代码、配置或重启开发服后，结束回复前执行 `python3 scripts/check-dev-health.py`。必须确认真实入口 `https://pi-dev.tr0.cc/`、`/api/home`、manifest、图标和首页引用的 JS/CSS 全部返回 200 且内容有效；单元测试、lint、类型检查或进程存在不能代替实际访问。
+- 界面修改还要用浏览器检查相关界面、失败请求和控制台错误；手机原生行为需明确说明是否经过真实设备验证。
+- 遇到 502 或资源错误，先对比开发域名和 `http://172.16.0.1:30142/`，检查监听、`tmux list-panes -t '=pi-web-dev'` 和 `/data/apps/pi-web/logs/dev.log`。请求绕过环境代理（`curl --noproxy '*'`），保留 TLS 校验。
+- 开发进程退出时用 `/data/apps/pi-web/bin/start-dev` 恢复；已有进程先定位故障，避免重复启动。tmux 使用 `=pi-web-dev` 精确匹配，不影响正式服。构建在隔离发布目录进行，不覆盖开发 `.next`。
+- 修复后重新跑完整健康检查，通过才报告完成；未通过则报告错误、尝试和阻塞原因。
+
 ## Quick Start
 
 ```bash

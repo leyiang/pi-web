@@ -2324,7 +2324,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               fontFamily: "inherit",
               minHeight: compact ? 96 : 24,
               maxHeight: 200,
-              overflow: "auto",
+              // Wrapped placeholder text must not create a scrollbar in an empty composer.
+              overflow: value ? "auto" : "hidden",
             }}
           />
 
@@ -2430,7 +2431,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         }}>
 
           {/* LEFT: attach + model selector (idle) or steer/followup toggle (streaming) */}
-          <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex", alignItems: "center", gap: 2 }}>
+          <div style={{ flex: isMobile ? "0 1 auto" : "0 0 auto", minWidth: 0, display: "flex", alignItems: "center", gap: 2 }}>
             <button
               onClick={() => fileInputRef.current?.click()}
              title={t("chat.attachFiles")}
@@ -2484,6 +2485,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
+            gap: 2,
             position: "relative",
             marginLeft: isMobile ? 0 : "auto",
           }}>
@@ -2502,9 +2504,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: "100%",
+                  width: 32,
                   height: 32,
-                  padding: "8px 10px",
+                  padding: 0,
                   background: "none",
                   border: "none",
                   borderRadius: 9,
@@ -2527,7 +2529,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   e.currentTarget.style.color = "var(--text-muted)";
                 }}
               >
-                {t("chat.moreControls")}
+                {/* Iconify lucide:menu; see docs/licenses/lucide.txt. */}
+                <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 5h16M4 12h16M4 19h16" />
+                </svg>
               </button>
             )}
             <div style={{
@@ -2536,7 +2541,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               gap: isMobile ? 1 : 2,
               ...(isMobile ? {
                 position: "absolute",
-                right: 0,
+                // Keep the independently visible Stop button outside the expanded menu.
+                right: isStreaming ? "calc(100% - 32px)" : 0,
                 bottom: 0,
                 zIndex: 60,
                 padding: 1,
@@ -2770,33 +2776,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </div>
             )}
 
-            {isStreaming && (
-              <button
-                onClick={onAbort}
-                 title={t("chat.stopAgent")}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "8px 14px",
-                  height: 32,
-                  background: "rgba(239,68,68,0.08)",
-                  border: "1px solid rgba(239,68,68,0.3)",
-                  borderRadius: 9,
-                  color: "#ef4444",
-                  cursor: "pointer",
-                  fontSize: 12, fontWeight: 600,
-                  whiteSpace: "nowrap", letterSpacing: "-0.01em",
-                  transition: "background 0.12s",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.16)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" fill="currentColor" />
-                </svg>
-                 {t("chat.stop")}
-              </button>
-            )}
-
             {onSoundToggle !== undefined && (
               <button
                 onClick={onSoundToggle}
@@ -2882,6 +2861,36 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </button>
             )}
             </div>
+            {isStreaming && (
+              <button
+                type="button"
+                className="chat-stop-button"
+                onClick={onAbort}
+                title={t("chat.stopAgent")}
+                aria-label={t("chat.stopAgent")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  flexShrink: 0,
+                  padding: "8px 14px",
+                  height: 32,
+                  background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                  borderRadius: 9,
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontSize: 12, fontWeight: 600,
+                  whiteSpace: "nowrap", letterSpacing: "-0.01em",
+                  transition: "background 0.12s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.16)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+              >
+                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" fill="currentColor" />
+                </svg>
+                {t("chat.stop")}
+              </button>
+            )}
           </div>
 
         </div>}

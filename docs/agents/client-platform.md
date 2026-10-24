@@ -19,6 +19,9 @@
 ## Terminal font size (`terminalFontSize()` in `hooks/useChatAppearance.ts`)
 - The terminal has no size setting of its own (#1277): it follows General's chat font size the way code blocks do, the same step from its own 13px at the 14px default (`terminalFontSize()`: chat − 1, so 11–23px). A slider move sets `terminal.options.fontSize` on the live xterm and refits through the panel's `fitAndResize`; the refit's `onResize` sends the new cols/rows to the PTY, the same path as a window resize.
 
+## Mobile composer controls (downstream)
+- More controls uses a 32px icon-only `lucide:menu` button, with its accessible label and expanded state retained. The running agent's Stop button is a sibling of the collapsible controls, never inside its hidden container; the expanded menu is offset to leave Stop accessible.
+
 ## Sidebar breakpoint (`components/AppShell.tsx`)
 - The mobile drawer starts closed on entering the mobile breakpoint. Desktop open state is remembered separately, seeded from the URL's initial `sidebarCollapsed` value and updated only by explicit desktop toggles. Returning to desktop restores that preference; mobile drawer toggles, backdrop clicks and toolbar actions must not replace it.
 
