@@ -24,7 +24,13 @@ test("mobile More controls is icon-only and Stop is outside the collapsible menu
   const source = ts.createSourceFile("ChatInput.tsx", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let more;
   let stop;
+  let menuStyle;
   function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === "div"
+        && node.openingElement.attributes.getText(source).includes('role="group" aria-label={t("chat.moreControls")}')) {
+      menuStyle = node.openingElement.attributes.properties.find(attr => attr.name?.getText(source) === "style")
+        .initializer.expression.getText(source);
+    }
     if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === "button") {
       const attributes = node.openingElement.attributes.getText(source);
       if (attributes.includes('aria-label={t("chat.moreControls")}')) more = node;
@@ -45,7 +51,43 @@ test("mobile More controls is icon-only and Stop is outside the collapsible menu
         "Stop must not live inside the mobile menu's hidden container");
     }
   }
-  assert.match(text, /right: isStreaming \? "calc\(100% - 32px\)" : 0/);
+  assert.ok(menuStyle);
+  const styleScript = new Script(`(${menuStyle})`);
+  const mobile = styleScript.runInNewContext({ isMobile: true, controlsMenuOpen: true });
+  assert.equal(mobile.flexDirection, "column");
+  assert.equal(mobile.alignItems, "stretch");
+  assert.equal(mobile.bottom, "calc(100% + 8px)");
+  assert.equal(mobile.width, 200);
+  assert.equal(styleScript.runInNewContext({ isMobile: true, controlsMenuOpen: false }).display, "none");
+  const desktop = styleScript.runInNewContext({ isMobile: false, controlsMenuOpen: false });
+  assert.equal(desktop.display, "flex");
+  assert.equal(desktop.flexDirection, undefined);
+  assert.equal(desktop.position, undefined);
+});
+
+test("mobile Refresh follows the close row and performs a full browser reload", () => {
+  const text = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+  const source = ts.createSourceFile("ChatInput.tsx", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let refresh;
+  let close;
+  function visit(node) {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === "button") {
+      const attributes = node.openingElement.attributes.getText(source);
+      if (attributes.includes('aria-label={t("i18n.refresh")}')) refresh = node;
+      if (attributes.includes('aria-label={t("chat.collapseControls")}')) close = node;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(refresh);
+  assert.ok(close);
+  assert.equal(refresh.parent, close.parent, "same popup section");
+  assert.ok(refresh.pos > close.end, "Refresh is below Close");
+  const handler = refresh.openingElement.attributes.properties.find(attr => attr.name?.getText(source) === "onClick")
+    .initializer.expression.getText(source);
+  let reloads = 0;
+  new Script(`(${handler})()`).runInNewContext({ window: { location: { reload() { reloads += 1; } } } });
+  assert.equal(reloads, 1);
 });
 
 test("an empty placeholder never scrolls while real input keeps normal overflow", () => {

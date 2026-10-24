@@ -2487,18 +2487,18 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             justifyContent: "flex-end",
             gap: 2,
             position: "relative",
-            marginLeft: isMobile ? 0 : "auto",
+            marginLeft: "auto",
           }}>
             {isMobile && (
               <button
                 type="button"
-                 title={controlsMenuOpen ? undefined : t("chat.moreControls")}
-                 aria-label={t("chat.moreControls")}
+                title={t("chat.moreControls")}
+                aria-label={t("chat.moreControls")}
                 aria-expanded={controlsMenuOpen}
-                aria-hidden={controlsMenuOpen || undefined}
-                tabIndex={controlsMenuOpen ? -1 : undefined}
                 onClick={() => {
-                  setControlsMenuOpen(true);
+                  setToolDropdownOpen(false);
+                  setThinkingDropdownOpen(false);
+                  setControlsMenuOpen((open) => !open);
                 }}
                 style={{
                   display: "flex",
@@ -2511,11 +2511,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   border: "none",
                   borderRadius: 9,
                   color: "var(--text-muted)",
-                  cursor: controlsMenuOpen ? "default" : "pointer",
+                  cursor: "pointer",
                   fontSize: 12,
                   fontWeight: 500,
-                  visibility: controlsMenuOpen ? "hidden" : "visible",
-                  pointerEvents: controlsMenuOpen ? "none" : "auto",
                   transition: "background 0.12s, color 0.12s",
                 }}
                 onMouseEnter={(e) => {
@@ -2535,21 +2533,20 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 </svg>
               </button>
             )}
-            <div style={{
+            <div role="group" aria-label={t("chat.moreControls")} style={{
               display: isMobile ? (controlsMenuOpen ? "flex" : "none") : "flex",
               alignItems: "center",
               gap: isMobile ? 1 : 2,
               ...(isMobile ? {
                 position: "absolute",
-                // Keep the independently visible Stop button outside the expanded menu.
-                right: isStreaming ? "calc(100% - 32px)" : 0,
-                bottom: 0,
+                right: 0,
+                bottom: "calc(100% + 8px)",
                 zIndex: 60,
-                padding: 1,
-                width: "max-content",
+                padding: 4,
+                width: 200,
                 maxWidth: "calc(100vw - 32px)",
-                flexWrap: "nowrap",
-                justifyContent: "flex-end",
+                flexDirection: "column",
+                alignItems: "stretch",
                 border: "1px solid color-mix(in srgb, var(--border) 72%, transparent)",
                 borderRadius: 10,
                 background: "color-mix(in srgb, var(--bg-panel) 92%, var(--bg))",
@@ -2558,7 +2555,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               } : null),
             }}>
             {onThinkingLevelChange && (
-              <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
+              <div ref={thinkingDropdownRef} style={{ position: "relative", width: isMobile ? "100%" : undefined }}>
                 <button
                   onClick={() => setThinkingDropdownOpen((v) => !v)}
                   title={isStreaming
@@ -2566,10 +2563,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     : t("chat.changeReasoning", { level: thinkingDisplayLabel })}
                   aria-label={t("chat.changeReasoningLabel")}
                   style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    padding: isMobile ? "0 6px" : "8px 12px",
-                    width: isMobile ? "auto" : undefined,
-                    height: 32,
+                    display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", gap: 8,
+                    padding: isMobile ? "0 10px" : "8px 12px",
+                    width: isMobile ? "100%" : undefined,
+                    height: isMobile ? 36 : 32,
                     background: thinkingDropdownOpen ? "var(--bg-hover)" : "none",
                     border: "none",
                     borderRadius: 9,
@@ -2597,7 +2594,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 {thinkingDropdownOpen && (
                   <div style={{
                     position: "absolute", bottom: "calc(100% + 6px)",
-                    ...(isMobile ? { left: 0 } : { right: 0 }),
+                    right: 0,
+                    maxWidth: isMobile ? "calc(100vw - 32px)" : undefined,
                     zIndex: 100, background: "var(--bg)", border: "1px solid var(--border)",
                     borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
                     overflow: "hidden", minWidth: 180,
@@ -2652,17 +2650,17 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </div>
             )}
             {!isStreaming && onToolPresetChange && (
-              <div ref={toolDropdownRef} style={{ position: "relative" }}>
+              <div ref={toolDropdownRef} style={{ position: "relative", width: isMobile ? "100%" : undefined }}>
                 <button
                   onClick={(e) => { if (!isStreaming && !isStrayClick(e)) setToolDropdownOpen((v) => !v); }}
                   disabled={isStreaming}
                   title={t("chat.changeToolPreset") + `: ${toolPresetLabel}`}
                   aria-label={t("chat.changeToolPreset")}
                   style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    padding: isMobile ? "0 6px" : "8px 12px",
-                    width: isMobile ? "auto" : undefined,
-                    height: 32,
+                    display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", gap: 8,
+                    padding: isMobile ? "0 10px" : "8px 12px",
+                    width: isMobile ? "100%" : undefined,
+                    height: isMobile ? 36 : 32,
                     background: toolDropdownOpen ? "var(--bg-hover)" : "none",
                     border: "none",
                     borderRadius: 9,
@@ -2691,8 +2689,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <div style={{
                     position: "absolute",
                     bottom: "calc(100% + 6px)",
-                    right: isMobile ? undefined : 0,
-                    left: isMobile ? 0 : undefined,
+                    right: 0,
+                    maxWidth: isMobile ? "calc(100vw - 32px)" : undefined,
                     zIndex: 100, background: "var(--bg)", border: "1px solid var(--border)",
                     borderRadius: 8, boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
                     overflow: "hidden", minWidth: 120,
@@ -2737,14 +2735,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             )}
 
             {(!isStreaming || isCompacting) && onCompact && (
-              <div>
+              <div style={{ width: isMobile ? "100%" : undefined }}>
                 <button
                   onClick={isCompacting ? onAbortCompaction : (e) => { if (!isStrayClick(e)) onCompact(); }}
                   style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    padding: isMobile ? "0 6px" : "8px 12px",
-                    width: isMobile ? "auto" : undefined,
-                    height: 32,
+                    display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", gap: 8,
+                    padding: isMobile ? "0 10px" : "8px 12px",
+                    width: isMobile ? "100%" : undefined,
+                    height: isMobile ? 36 : 32,
                     background: isCompacting ? "rgba(239,68,68,0.08)" : "none",
                     border: "none",
                     borderRadius: 9,
@@ -2782,10 +2780,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                  title={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
                  aria-label={soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}
                 style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                  width: isMobile ? 32 : 32,
-                  height: 32,
-                  padding: 0,
+                  display: "flex", alignItems: "center", justifyContent: isMobile ? "flex-start" : "center", gap: 8,
+                  width: isMobile ? "100%" : 32,
+                  height: isMobile ? 36 : 32,
+                  padding: isMobile ? "0 10px" : 0,
                   background: "none",
                   border: "none",
                   borderRadius: 9,
@@ -2818,9 +2816,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <line x1="17" y1="9" x2="23" y2="15" />
                   </svg>
                 )}
+                {isMobile && <span>{soundEnabled ? t("chat.disableSound") : t("chat.enableSound")}</span>}
               </button>
             )}
             {isMobile && controlsMenuOpen && (
+              <>
               <button
                 type="button"
                  title={t("chat.collapseControls")}
@@ -2834,15 +2834,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  width: 36,
-                  height: 32,
-                  padding: 0,
-                  marginLeft: 0,
+                  justifyContent: "flex-start",
+                  gap: 8,
+                  width: "100%",
+                  height: 36,
+                  padding: "0 10px",
                   background: "var(--bg-hover)",
                   border: "none",
-                  borderLeft: "1px solid color-mix(in srgb, var(--border) 72%, transparent)",
-                  borderRadius: "0 9px 9px 0",
+                  borderRadius: 7,
                   color: "var(--text)",
                   cursor: "pointer",
                   transition: "background 0.12s, color 0.12s",
@@ -2858,7 +2857,38 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
+                <span>{t("chat.collapseControls")}</span>
               </button>
+              <button
+                type="button"
+                title={t("i18n.refresh")}
+                aria-label={t("i18n.refresh")}
+                onClick={() => window.location.reload()}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8,
+                  width: "100%", height: 36, padding: "0 10px",
+                  background: "none", border: "none", borderRadius: 7,
+                  color: "var(--text-muted)", cursor: "pointer", fontSize: 12,
+                  transition: "background 0.12s, color 0.12s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--bg-hover)";
+                  e.currentTarget.style.color = "var(--text)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                {/* Iconify lucide:refresh-cw; see docs/licenses/lucide.txt. */}
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 0 1 9-9a9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5m5 4a9 9 0 0 1-9 9a9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                  <path d="M8 16H3v5" />
+                </svg>
+                <span>{t("i18n.refresh")}</span>
+              </button>
+              </>
             )}
             </div>
             {isStreaming && (
