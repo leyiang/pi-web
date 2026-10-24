@@ -6,22 +6,24 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { getModelRuntimeWithExtensions } from "./model-runtime";
 import { listAllSessions } from "./session-reader";
-import { createSessionRouterTools, routingMessagesFromJsonl, type RouterCatalog } from "./session-router-tools";
+import { createSessionRouterTools, routingMessagesFromJsonl, searchRoutingMessages, type RouterCatalog } from "./session-router-tools";
 import { ROUTER_MODEL, ROUTER_PROVIDER, type SessionRouteResult } from "./session-routing";
 
 export async function readRoutingCatalog(): Promise<RouterCatalog> {
   const sessions = (await listAllSessions()).filter(s => !s.transient && s.relation?.kind !== "subagent");
+  const load = async (session: RouterCatalog["sessions"][number]) => {
+    // Paths originate only from this instance's catalog, never from model arguments.
+    if ((await stat(session.path)).size > 32 * 1024 * 1024) throw new Error("Session is too large for this router preview");
+    return readFile(session.path, "utf8");
+  };
   return {
     sessions,
-    async read(session, offset) {
-      // Paths originate only from this instance's catalog, never from model arguments.
-      if ((await stat(session.path)).size > 32 * 1024 * 1024) throw new Error("Session is too large for this router preview");
-      return routingMessagesFromJsonl(await readFile(session.path, "utf8"), offset);
-    },
+    async read(session, offset, query) { return routingMessagesFromJsonl(await load(session), offset, query); },
+    async search(session, query, match) { return searchRoutingMessages(await load(session), query, match); },
   };
 }
 
-/** A disposable Pi session with a bundled Skill and exactly three routing tools. */
+/** A disposable Pi session with a bundled Skill and exactly four read-only routing tools. */
 export async function routeSessionTask(message: string, options: {
   signal: AbortSignal;
   catalog?: RouterCatalog;
@@ -50,7 +52,7 @@ export async function routeSessionTask(message: string, options: {
   };
   const cwd = getAgentDir();
   const { session } = await createAgentSession({
-    cwd, agentDir: cwd, modelRuntime: runtime, model, thinkingLevel: "low",
+    cwd, agentDir: cwd, modelRuntime: runtime, model, thinkingLevel: "high",
     tools: routing.tools.map(tool => tool.name), customTools: routing.tools, resourceLoader,
     sessionManager: SessionManager.inMemory(cwd),
     settingsManager: SettingsManager.inMemory({
