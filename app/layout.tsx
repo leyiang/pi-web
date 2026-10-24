@@ -14,22 +14,27 @@ const notoSansMono = Noto_Sans_Mono({
   display: "swap",
 });
 
+const isDevelopment = process.env.NODE_ENV === "development";
+const appName = isDevelopment ? "Pi Web Dev" : "Pi Web";
+const iconSuffix = isDevelopment ? "-dev-v1" : "";
+
 export const metadata: Metadata = {
-  title: "Pi Web",
+  title: appName,
   description: "Pi Web interface for the pi coding agent",
-  applicationName: "Pi Web",
+  applicationName: appName,
   manifest: "/manifest.webmanifest",
   icons: {
+    shortcut: isDevelopment ? "/icons/favicon-dev-v1.png" : "/favicon.ico",
     icon: [
       {
-        url: "/icons/icon-192.png",
+        url: `/icons/icon-192${iconSuffix}.png`,
         sizes: "192x192",
         type: "image/png",
       },
     ],
     apple: [
       {
-        url: "/icons/apple-touch-icon.png",
+        url: `/icons/apple-touch-icon${iconSuffix}.png`,
         sizes: "180x180",
         type: "image/png",
       },
@@ -38,7 +43,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Pi Web",
+    title: appName,
   },
   formatDetection: {
     telephone: false,

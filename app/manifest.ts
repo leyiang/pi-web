@@ -3,7 +3,9 @@ import type { MetadataRoute } from "next";
 export const dynamic = "force-dynamic";
 
 export default function manifest(): MetadataRoute.Manifest {
-  const appName = process.env.PI_WEB_APP_NAME?.trim() || "Pi Web";
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const appName = process.env.PI_WEB_APP_NAME?.trim() || (isDevelopment ? "Pi Web Dev" : "Pi Web");
+  const iconSuffix = isDevelopment ? "-dev-v1" : "";
   return {
     id: "/",
     name: appName,
@@ -18,13 +20,13 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "en",
     icons: [
       {
-        src: "/icons/icon-192.png",
+        src: `/icons/icon-192${iconSuffix}.png`,
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/icon-512.png",
+        src: `/icons/icon-512${iconSuffix}.png`,
         sizes: "512x512",
         type: "image/png",
         purpose: "any",

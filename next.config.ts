@@ -57,6 +57,8 @@ const nextConfig: NextConfig = {
   // loopback and the RFC1918 LAN ranges so the dev server stays reachable
   // from other machines on the same LAN.
   allowedDevOrigins: [
+    "pi-dev.tr0.cc",
+    "pi.dev.lc",
     "127.0.0.1",
     "10.*.*.*",
     // 172.16.0.0/12
