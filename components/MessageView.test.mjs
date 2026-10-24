@@ -36,6 +36,24 @@ function renderMessage(message, props = {}) {
   );
 }
 
+test("only assistant Copy is always visible; user Copy still requires hovering", () => {
+  for (const role of ["user", "assistant"]) {
+    const html = renderMessage({
+      role,
+      content: [{ type: "text", text: "Always copyable" }],
+      timestamp: 1,
+      ...(role === "assistant" ? { provider: "test", model: "test" } : {}),
+    });
+    assert.match(html, /title="Copy message"/);
+    if (role === "assistant") {
+      assert.doesNotMatch(html, /opacity:0(?:;|")|pointer-events:none/);
+    } else {
+      assert.match(html, /opacity:0;/);
+      assert.match(html, /pointer-events:none/);
+    }
+  }
+});
+
 test("updates a reused message when its written files change", () => {
   const props = { message: { role: "assistant", content: [] } };
   assert.equal(MessageView.compare(props, props), true);

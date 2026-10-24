@@ -689,7 +689,6 @@ function AssistantMessageView({
   const providerError = getAssistantErrorMessage(message, { isStreaming });
   const truncated = isAssistantTruncated(message, { isStreaming });
   const unansweredTruncation = truncated && !hasAssistantAnswer(message);
-  const [hovered, setHovered] = useState(false);
   const [copied, setCopied] = useState(false);
   const streamStartRef = useRef<StreamRateStart | null>(null);
   const rateKey = streamRateKey(message);
@@ -818,8 +817,6 @@ function AssistantMessageView({
       data-message-role="assistant"
       data-entry-id={entryId}
       style={{ marginBottom: 16 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       {/* Model label */}
       <div
@@ -964,9 +961,7 @@ function AssistantMessageView({
               cursor: "pointer",
               fontSize: 11, fontWeight: 400,
               whiteSpace: "nowrap",
-              opacity: hovered ? 1 : 0,
-              pointerEvents: hovered ? "auto" : "none",
-              transition: "opacity 0.12s, color 0.12s",
+              transition: "color 0.12s",
             }}
             onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "var(--accent)"; }}
             onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = "var(--text-dim)"; }}
